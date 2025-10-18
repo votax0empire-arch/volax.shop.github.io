@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>3D Shop — Your Store</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Three.js from unpkg CDN -->
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#06b6d4;
+      --muted:#98a0ad;
+      --glass: rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter, system-ui, Arial, sans-serif;
+      background:linear-gradient(180deg,var(--bg),#071027 140%);
+      color:#e6eef6;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      gap:18px;
+      padding:20px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    .logo{
+      width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7c3aed);
+      display:flex;align-items:center;justify-content:center;font-weight:700;color:#021122;font-size:18px;
+      box-shadow:0 6px 18px rgba(6,182,212,0.12), inset 0 -6px 18px rgba(255,255,255,0.03);
+    }
+    h1{margin:0;font-size:20px;letter-spacing:0.2px}
+    .sub{color:var(--muted);font-size:13px;margin-top:4px}
+
+    .container{
+      max-width:1200px;margin:18px auto;padding:18px;display:grid;grid-template-columns: 1fr 420px;gap:20px;
+    }
+
+    /* Left: product grid */
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+      gap:18px;
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,0.03);
+      box-shadow: 0 6px 20px rgba(2,6,23,0.5), 0 2px 6px rgba(6,182,212,0.03);
+      transform-style:preserve-3d;transition: transform 220ms cubic-bezier(.2,.9,.2,1);
+      cursor: pointer;
+    }
+    .card:hover{transform: translateY(-8px) scale(1.01);}
+
+    .thumb{width:100%;height:170px;border-radius:10px;overflow:hidden;background:#08101a;display:flex;align-items:center;justify-content:center}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+
+    .p-name{font-weight:700;margin-top:10px;font-size:15px}
+    .p-desc{color:var(--muted);font-size:13px;margin-top:6px;min-height:36px}
+    .p-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+    .price{color:var(--accent);font-weight:700}
+    .action{background:var(--accent);color:#021122;padding:8px 10px;border-radius:8px;text-decoration:none;font-weight:700}
+    .action.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);padding:8px 10px}
+
+    /* Right: 3D stage + cart */
+    .side{
+      position:sticky;top:18px;align-self:start;display:flex;flex-direction:column;gap:14px;
+    }
+    .stage{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,0.03);
+      min-height:360px;display:flex;flex-direction:column;gap:12px;
+    }
+    .stage h3{margin:0}
+    #canvas-wrap{width:100%;height:260px;border-radius:10px;background:linear-gradient(180deg,#071424,#021122)}
+    .cart{
+      background:var(--glass);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.02);
+      display:flex;flex-direction:column;gap:8px;
+    }
+    .cart-row{display:flex;align-items:center;justify-content:space-between;font-size:14px}
+    .cart-footer{display:flex;gap:8px}
+    .btn{padding:10px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+    .btn.primary{background:var(--accent);color:#021122}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+
+    footer{max-width:1200px;margin:28px auto;padding:18px;color:var(--muted);font-size:13px}
+
+    /* responsive */
+    @media (max-width:1000px){
+      .container{grid-template-columns: 1fr; padding:12px}
+      .side{position:static}
+      #canvas-wrap{height:220px}
+    }
+
+    /* small helper */
+    .badge{font-size:12px;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">3D</div>
+    <div>
+      <h1>3D Shop — Product Catalog</h1>
+      <div class="sub">Free — paste into GitHub Pages. Click product to add to cart, checkout via WhatsApp.</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">
+        <div class="badge" id="catalog-count">0 products</div>
+        <div style="flex:1"></div>
+        <input id="search" placeholder="Search product name..." style="background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#e6eef6" />
+      </div>
+
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <aside class="side">
+      <div class="stage">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>3D Showcase</h3>
+          <div class="sub">Rotate: drag · Zoom: mouse wheel</div>
+        </div>
+        <div id="canvas-wrap"></div>
+
+        <div style="display:flex;gap:10px;justify-content:space-between">
+          <button class="btn ghost" id="prevBtn">Prev</button>
+          <button class="btn ghost" id="nextBtn">Next</button>
+          <div style="flex:1"></div>
+          <div class="badge" id="stage-name">—</div>
+        </div>
+      </div>
+
+      <div class="cart">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Cart</div>
+          <div class="sub" id="cart-count">0</div>
+        </div>
+
+        <div id="cart-items" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto"></div>
+
+        <div class="cart-row" style="margin-top:8px">
+          <div>Total</div>
+          <div id="cart-total">PKR 0</div>
+        </div>
+
+        <div class="cart-footer">
+          <button class="btn primary" id="checkoutBtn">Checkout (WhatsApp)</button>
+          <button class="btn ghost" id="clearCart">Clear</button>
+        </div>
+
+        <div style="margin-top:8px;color:var(--muted);font-size:13px">
+          Or use a form: <a id="formLink" href="#" target="_blank" style="color:var(--accent);text-decoration:none">Open order form</a>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    Built with free tools — just upload this file + images to GitHub Pages. Replace WhatsApp number in script.
+  </footer>
+
+  <script>
+  /************************************
+   * PRODUCT LIST: edit here
+   * For each product: { id, name, price (PKR), img, desc }
+   * Upload images to your repo root with the exact img filename.
+   ************************************/
+  const PRODUCTS = [
+    {id:'p1', name:'Smart Watch X100', price:3500, img:'prod1.jpg', desc:'Fitness watch with heart-rate monitor.'},
+    {id:'p2', name:'Wireless Headphones', price:2499, img:'prod2.jpg', desc:'Comfortable over-ear headphones.'},
+    {id:'p3', name:'Silicone Phone Case', price:499, img:'prod3.jpg', desc:'Shockproof soft-touch case.'},
+    {id:'p4', name:'Mini Bluetooth Speaker', price:1299, img:'prod4.jpg', desc:'Portable speaker — play everywhere.'}
+  ];
+
+  /************************************
+   * SETTINGS: change these to your details
+   ************************************/
+  const SETTINGS = {
+    whatsappNumber: '923001234567', // <<--- replace with your WhatsApp number (country code, no +). Example: 923001234567
+    googleFormUrl: '', // optional: paste Google Form URL to receive orders
+    currencyLabel: 'PKR'
+  };
+
+  // DOM refs
+  const grid = document.getElementById('grid');
+  const catalogCount = document.getElementById('catalog-count');
+  const stageName = document.getElementById('stage-name');
+  const cartCount = document.getElementById('cart-count');
+  const cartTotal = document.getElementById('cart-total');
+  const cartItemsWrap = document.getElementById('cart-items');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  const clearCartBtn = document.getElementById('clearCart');
+  const formLink = document.getElementById('formLink');
+  const searchInput = document.getElementById('search');
+
+  // Cart (localStorage)
+  let CART = JSON.parse(localStorage.getItem('shop_cart_v1')||'{}');
+
+  function saveCart(){ localStorage.setItem('shop_cart_v1', JSON.stringify(CART)); updateCartUI(); }
+
+  function addToCart(pid){
+    if(!CART[pid]) CART[pid] = 0;
+    CART[pid] += 1;
+    saveCart();
+    flash('Added to cart');
+  }
+  function removeFromCart(pid){
+    delete CART[pid]; saveCart();
+  }
+  function changeQty(pid, qty){
+    if(qty<=0) delete CART[pid]; else CART[pid]=qty;
+    saveCart();
+  }
+
+  function totalCart(){
+    let total=0;
+    for(const id in CART){
+      const p = PRODUCTS.find(x=>x.id===id);
+      if(p) total += p.price * CART[id];
+    }
+    return total;
+  }
+
+  function updateCartUI(){
+    cartItemsWrap.innerHTML='';
+    let count = 0;
+    for(const id in CART){
+      const p = PRODUCTS.find(x=>x.id===id);
+      if(!p) continue;
+      const qty = CART[id];
+      count += qty;
+      const row = document.createElement('div');
+      row.className = 'cart-row';
+      row.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+          <img src="${p.img}" style="width:42px;height:34px;object-fit:cover;border-radius:6px"/>
+          <div>
+            <div style="font-weight:700">${p.name}</div>
+            <div style="font-size:12px;color:var(--muted)"> ${qty} × ${SETTINGS.currencyLabel} ${p.price}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <div style="display:flex;gap:6px">
+            <button class="btn ghost" data-action="dec" data-id="${p.id}">-</button>
+            <div style="padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02)">${qty}</div>
+            <button class="btn ghost" data-action="inc" data-id="${p.id}">+</button>
+          </div>
+          <button class="btn ghost" data-action="remove" data-id="${p.id}" style="padding:6px">Remove</button>
+        </div>
+      `;
+      cartItemsWrap.appendChild(row);
+    }
+
+    cartCount.textContent = count;
+    cartTotal.textContent = `${SETTINGS.currencyLabel} ${totalCart()}`;
+
+    // attach listeners on dynamic buttons
+    cartItemsWrap.querySelectorAll('button[data-action]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.getAttribute('data-id');
+        const action = btn.getAttribute('data-action');
+        if(action==='inc'){ changeQty(id, (CART[id]||0)+1); }
+        if(action==='dec'){ changeQty(id, (CART[id]||1)-1); }
+        if(action==='remove'){ removeFromCart(id); }
+      };
+    });
+  }
+
+  // Render product grid
+  function renderGrid(filterText=''){
+    grid.innerHTML='';
+    const list = PRODUCTS.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
+    catalogCount.textContent = `${list.length} products`;
+    list.forEach(p=>{
+      const div = document.createElement('div');
+      div.className='card';
+      div.innerHTML = `
+        <div class="thumb"><img src="${p.img}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'"></div>
+        <div class="p-name">${p.name}</div>
+        <div class="p-desc">${p.desc}</div>
+        <div class="p-row">
+          <div class="price">${SETTINGS.currencyLabel} ${p.price}</div>
+          <div style="display:flex;gap:8px">
+            <a class="action secondary" data-id="${p.id}" href="#">View</a>
+            <a class="action" data-id="${p.id}" href="#">Add</a>
+          </div>
+        </div>
+      `;
+      grid.appendChild(div);
+
+      const addBtn = div.querySelector('.action');
+      addBtn.onclick = (e)=>{ e.preventDefault(); addToCart(p.id); };
+
+      const viewBtn = div.querySelector('.action.secondary');
+      viewBtn.onclick = (e)=>{ e.preventDefault(); selectStageProduct(p.id); };
+    });
+  }
+
+  // small toast
+  function flash(msg){
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style,{position:'fixed',right:'18px',bottom:'18px',background:'#021122',padding:'10px 14px',borderRadius:'8px',boxShadow:'0 8px 30px rgba(2,6,23,.6)'});
+    document.body.appendChild(t);
+    setTimeout(()=>t.style.opacity=0,1800);
+    setTimeout(()=>t.remove(),2400);
+  }
+
+  // Checkout -> create WhatsApp prefilled message
+  checkoutBtn.onclick = ()=>{
+    const items = [];
+    for(const id in CART){
+      const p = PRODUCTS.find(x=>x.id===id);
+      if(p) items.push(`${p.name} x${CART[id]} (${SETTINGS.currencyLabel} ${p.price})`);
+    }
+    if(items.length===0){
+      alert('Cart is empty');
+      return;
+    }
+    const total = totalCart();
+    const msg = encodeURIComponent(`Hello, I want to order:\n${items.join('\n')}\nTotal: ${SETTINGS.currencyLabel} ${total}\nName:\nAddress:\nPhone:`);
+    const wa = `https://wa.me/${SETTINGS.whatsappNumber}?text=${msg}`;
+    window.open(wa,'_blank');
+  };
+
+  clearCartBtn.onclick = ()=>{
+    CART={}; saveCart();
+  };
+
+  // Optional: set Google form link
+  if(SETTINGS.googleFormUrl){
+    formLink.href = SETTINGS.googleFormUrl;
+    formLink.textContent = 'Open order form';
+  } else {
+    formLink.href = '#';
+    formLink.innerHTML = '<span style="color:var(--muted)">Add your Google Form link in code</span>';
+  }
+
+  // Search
+  searchInput.oninput = ()=> renderGrid(searchInput.value);
+
+  // init
+  renderGrid();
+  updateCartUI();
+
+  /*******************************
+   * 3D Showcase (Three.js)
+   * This shows a simple rotating product plane for the selected product.
+   *******************************/
+  let scene, camera, renderer, planeMesh, controls;
+  const wrap = document.getElementById('canvas-wrap');
+  let currentIndex = 0;
+
+  function init3D(){
+    const width = wrap.clientWidth;
+    const height = wrap.clientHeight;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 1000);
+    camera.position.set(0,0,4.2);
+
+    renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    wrap.appendChild(renderer.domElement);
+
+    // light
+    const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambient);
+
+    // plane material used to show product image
+    const geometry = new THREE.PlaneGeometry(2.2, 2.2 * (height/width));
+    const material = new THREE.MeshBasicMaterial({color:0xffffff});
+    planeMesh = new THREE.Mesh(geometry, material);
+    scene.add(planeMesh);
+
+    // simple controls: drag to rotate
+    let dragging=false, lastX=0, lastY=0;
+    renderer.domElement.addEventListener('pointerdown', (e)=>{
+      dragging=true; lastX=e.clientX; lastY=e.clientY;
+    });
+    window.addEventListener('pointerup', ()=> dragging=false);
+    window.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      const dx = (e.clientX - lastX)/200;
+      const dy = (e.clientY - lastY)/200;
+      planeMesh.rotation.y += dx;
+      planeMesh.rotation.x += dy;
+      lastX = e.clientX; lastY = e.clientY;
+    });
+
+    // wheel to zoom
+    renderer.domElement.addEventListener('wheel', (e)=>{
+      camera.position.z += e.deltaY * 0.003;
+      camera.position.z = Math.max(2, Math.min(8, camera.position.z));
+    });
+
+    window.addEventListener('resize', onResize);
+    animate();
+  }
+
+  function onResize(){
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+
+  function animate(){
+    requestAnimationFrame(animate);
+    planeMesh.rotation.y *= 0.98; // subtle dampening
+    renderer.render(scene, camera);
+  }
+
+  // load texture for product into plane
+  function loadProductTexture(p){
+    const loader = new THREE.TextureLoader();
+    const url = p.img;
+    loader.load(url,
+      (tex)=>{
+        planeMesh.material.map = tex;
+        planeMesh.material.needsUpdate = true;
+        stageName.textContent = p.name;
+      },
+      undefined,
+      ()=>{ // on error
+        // fallback: placeholder
+        loader.load('https://via.placeholder.com/600x400?text=No+Image', (tex)=>{
+          planeMesh.material.map = tex;
+          planeMesh.material.needsUpdate = true;
+          stageName.textContent = p.name;
+        });
+      }
+    );
+  }
+
+  function selectStageProduct(id){
+    const idx = PRODUCTS.findIndex(x=>x.id===id);
+    if(idx<0) return;
+    currentIndex = idx;
+    loadProductTexture(PRODUCTS[currentIndex]);
+    flash(`Selected: ${PRODUCTS[currentIndex].name}`);
+  }
+
+  // next / prev
+  document.getElementById('prevBtn').onclick = ()=>{
+    currentIndex = (currentIndex - 1 + PRODUCTS.length) % PRODUCTS.length;
+    loadProductTexture(PRODUCTS[currentIndex]);
+  };
+  document.getElementById('nextBtn').onclick = ()=>{
+    currentIndex = (currentIndex + 1) % PRODUCTS.length;
+    loadProductTexture(PRODUCTS[currentIndex]);
+  };
+
+  // init 3D after DOM ready
+  window.addEventListener('load', ()=>{
+    try{
+      init3D();
+      // initial product
+      if(PRODUCTS.length>0) loadProductTexture(PRODUCTS[0]);
+    }catch(e){
+      console.error('3D init failed', e);
+      wrap.innerHTML = '<div style="padding:28px;text-align:center;color:var(--muted)">3D unsupported — update browser</div>';
+    }
+  });
+
+  </script>
+</body>
+</html>
